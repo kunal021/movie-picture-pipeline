@@ -8,6 +8,9 @@ on:
       - 'starter/backend/**'
   workflow_dispatch:
 
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
 jobs:
   lint:
     name: Lint
@@ -92,7 +95,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -123,7 +126,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -133,7 +136,7 @@ jobs:
         run: |
           aws eks update-kubeconfig \
             --name ${{ secrets.EKS_CLUSTER_NAME }} \
-            --region ${{ secrets.AWS_REGION }}
+            --region ${{ env.AWS_REGION }}
 
       - name: Set image tag with kustomize and deploy
         env:
