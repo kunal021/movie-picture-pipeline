@@ -2,10 +2,10 @@
 # Terraform main.tf — AWS EKS + ECR Infrastructure
 # Movie Picture Pipeline
 #
-# NOTE: Designed for Udacity lab environments where:
-# - Credentials used = Vocareum lab temporary credentials (with session token)
-# - IAM role/user creation is blocked by SCP
-# - Uses the pre-existing LabRole for EKS cluster and node group
+# For Udacity Vocareum labs:
+# - Uses Vocareum temporary credentials (with AWS_SESSION_TOKEN)
+# - Uses variable for the IAM role ARN (avoids SCP-blocked iam:CreateRole)
+# - AZs hardcoded to avoid SCP-blocked ec2:DescribeAvailabilityZones
 # ============================================================
 
 terraform {
@@ -24,18 +24,12 @@ provider "aws" {
 
 # ----------------------------------------------------------
 # Data Sources
-# NOTE: aws_availability_zones is blocked by Udacity SCP — use locals instead
 # ----------------------------------------------------------
 
 data "aws_caller_identity" "current" {}
 
-# Look up the pre-existing LabRole (created by Udacity)
-data "aws_iam_role" "lab_role" {
-  name = "LabRole"
-}
-
 # ----------------------------------------------------------
-# Locals — hardcoded AZs (DescribeAvailabilityZones is SCP-blocked)
+# Locals — hardcoded AZs to avoid SCP-blocked DescribeAZs
 # ----------------------------------------------------------
 
 locals {
@@ -91,12 +85,12 @@ resource "aws_route_table_association" "public" {
 }
 
 # ----------------------------------------------------------
-# EKS Cluster — uses pre-existing LabRole (no IAM creation needed)
+# EKS Cluster — uses provided IAM role ARN variable
 # ----------------------------------------------------------
 
 resource "aws_eks_cluster" "main" {
   name     = var.cluster_name
-  role_arn = data.aws_iam_role.lab_role.arn
+  role_arn = var.iam_role_arn
   version  = "1.27"
 
   vpc_config {
@@ -108,13 +102,13 @@ resource "aws_eks_cluster" "main" {
 }
 
 # ----------------------------------------------------------
-# EKS Node Group — also uses pre-existing LabRole
+# EKS Node Group — also uses provided IAM role ARN
 # ----------------------------------------------------------
 
 resource "aws_eks_node_group" "main" {
   cluster_name    = aws_eks_cluster.main.name
   node_group_name = "${var.cluster_name}-nodes"
-  node_role_arn   = data.aws_iam_role.lab_role.arn
+  node_role_arn   = var.iam_role_arn
   subnet_ids      = aws_subnet.public[*].id
   instance_types  = [var.node_instance_type]
 
