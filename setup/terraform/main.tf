@@ -21,9 +21,17 @@ provider "aws" {
 # Data Sources
 # ----------------------------------------------------------
 
-data "aws_availability_zones" "available" {}
-
+# NOTE: aws_availability_zones data source is blocked by Udacity lab SCP.
+# AZs are hardcoded below as locals instead.
 data "aws_caller_identity" "current" {}
+
+# ----------------------------------------------------------
+# Locals — hardcoded AZs to avoid SCP-blocked DescribeAZs call
+# ----------------------------------------------------------
+
+locals {
+  availability_zones = ["${var.aws_region}a", "${var.aws_region}b"]
+}
 
 # ----------------------------------------------------------
 # VPC & Networking
@@ -43,7 +51,7 @@ resource "aws_subnet" "public" {
   count                   = 2
   vpc_id                  = aws_vpc.main.id
   cidr_block              = cidrsubnet(aws_vpc.main.cidr_block, 8, count.index)
-  availability_zone       = data.aws_availability_zones.available.names[count.index]
+  availability_zone       = local.availability_zones[count.index]
   map_public_ip_on_launch = true
 
   tags = {
