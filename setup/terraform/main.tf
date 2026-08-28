@@ -91,7 +91,7 @@ resource "aws_route_table_association" "public" {
 resource "aws_eks_cluster" "main" {
   name     = var.cluster_name
   role_arn = var.iam_role_arn
-  version  = "1.27"
+  version  = "1.29"
 
   vpc_config {
     subnet_ids             = aws_subnet.public[*].id

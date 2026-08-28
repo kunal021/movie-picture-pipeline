@@ -24,21 +24,18 @@ output "backend_ecr_repo_url" {
 }
 
 output "frontend_ecr_repo_name" {
-  description = "ECR repository name for frontend"
-  value       = aws_ecr_repository.frontend.name
+  value = aws_ecr_repository.frontend.name
 }
 
 output "backend_ecr_repo_name" {
-  description = "ECR repository name for backend"
-  value       = aws_ecr_repository.backend.name
+  value = aws_ecr_repository.backend.name
 }
 
 output "aws_region" {
-  description = "AWS region"
-  value       = var.aws_region
+  value = var.aws_region
 }
 
-output "lab_role_arn" {
-  description = "ARN of the LabRole used by EKS and GitHub Actions"
-  value       = data.aws_iam_role.lab_role.arn
+output "iam_role_arn_used" {
+  description = "IAM role ARN used for EKS"
+  value       = var.iam_role_arn
 }
