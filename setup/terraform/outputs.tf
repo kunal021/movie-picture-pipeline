@@ -33,12 +33,12 @@ output "backend_ecr_repo_name" {
   value       = aws_ecr_repository.backend.name
 }
 
-output "github_action_user_arn" {
-  description = "ARN of the github-action-user IAM user"
-  value       = aws_iam_user.github_actions.arn
-}
-
 output "aws_region" {
   description = "AWS region"
   value       = var.aws_region
+}
+
+output "lab_role_arn" {
+  description = "ARN of the LabRole used by EKS and GitHub Actions"
+  value       = data.aws_iam_role.lab_role.arn
 }

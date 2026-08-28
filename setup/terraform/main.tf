@@ -1,6 +1,11 @@
 # ============================================================
 # Terraform main.tf — AWS EKS + ECR Infrastructure
 # Movie Picture Pipeline
+#
+# NOTE: Designed for Udacity lab environments where:
+# - Credentials used = Vocareum lab temporary credentials (with session token)
+# - IAM role/user creation is blocked by SCP
+# - Uses the pre-existing LabRole for EKS cluster and node group
 # ============================================================
 
 terraform {
@@ -19,14 +24,18 @@ provider "aws" {
 
 # ----------------------------------------------------------
 # Data Sources
+# NOTE: aws_availability_zones is blocked by Udacity SCP — use locals instead
 # ----------------------------------------------------------
 
-# NOTE: aws_availability_zones data source is blocked by Udacity lab SCP.
-# AZs are hardcoded below as locals instead.
 data "aws_caller_identity" "current" {}
 
+# Look up the pre-existing LabRole (created by Udacity)
+data "aws_iam_role" "lab_role" {
+  name = "LabRole"
+}
+
 # ----------------------------------------------------------
-# Locals — hardcoded AZs to avoid SCP-blocked DescribeAZs call
+# Locals — hardcoded AZs (DescribeAvailabilityZones is SCP-blocked)
 # ----------------------------------------------------------
 
 locals {
@@ -55,15 +64,15 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = true
 
   tags = {
-    Name                                            = "${var.cluster_name}-public-${count.index}"
-    "kubernetes.io/cluster/${var.cluster_name}"     = "owned"
-    "kubernetes.io/role/elb"                        = "1"
+    Name                                        = "${var.cluster_name}-public-${count.index}"
+    "kubernetes.io/cluster/${var.cluster_name}" = "owned"
+    "kubernetes.io/role/elb"                    = "1"
   }
 }
 
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
-  tags = { Name = "${var.cluster_name}-igw" }
+  tags   = { Name = "${var.cluster_name}-igw" }
 }
 
 resource "aws_route_table" "public" {
@@ -82,85 +91,30 @@ resource "aws_route_table_association" "public" {
 }
 
 # ----------------------------------------------------------
-# IAM — EKS Cluster Role
-# ----------------------------------------------------------
-
-resource "aws_iam_role" "eks_cluster" {
-  name = "${var.cluster_name}-cluster-role"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action    = "sts:AssumeRole"
-      Effect    = "Allow"
-      Principal = { Service = "eks.amazonaws.com" }
-    }]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
-  role       = aws_iam_role.eks_cluster.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-}
-
-# ----------------------------------------------------------
-# IAM — EKS Node Role
-# ----------------------------------------------------------
-
-resource "aws_iam_role" "eks_node" {
-  name = "${var.cluster_name}-node-role"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action    = "sts:AssumeRole"
-      Effect    = "Allow"
-      Principal = { Service = "ec2.amazonaws.com" }
-    }]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "eks_worker_node_policy" {
-  role       = aws_iam_role.eks_node.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
-}
-
-resource "aws_iam_role_policy_attachment" "eks_cni_policy" {
-  role       = aws_iam_role.eks_node.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-}
-
-resource "aws_iam_role_policy_attachment" "eks_ecr_read" {
-  role       = aws_iam_role.eks_node.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-}
-
-# ----------------------------------------------------------
-# EKS Cluster
+# EKS Cluster — uses pre-existing LabRole (no IAM creation needed)
 # ----------------------------------------------------------
 
 resource "aws_eks_cluster" "main" {
   name     = var.cluster_name
-  role_arn = aws_iam_role.eks_cluster.arn
+  role_arn = data.aws_iam_role.lab_role.arn
   version  = "1.27"
 
   vpc_config {
-    subnet_ids              = aws_subnet.public[*].id
-    endpoint_public_access  = true
-    endpoint_private_access = false
+    subnet_ids             = aws_subnet.public[*].id
+    endpoint_public_access = true
   }
-
-  depends_on = [aws_iam_role_policy_attachment.eks_cluster_policy]
 
   tags = { Name = var.cluster_name }
 }
 
 # ----------------------------------------------------------
-# EKS Node Group
+# EKS Node Group — also uses pre-existing LabRole
 # ----------------------------------------------------------
 
 resource "aws_eks_node_group" "main" {
   cluster_name    = aws_eks_cluster.main.name
   node_group_name = "${var.cluster_name}-nodes"
-  node_role_arn   = aws_iam_role.eks_node.arn
+  node_role_arn   = data.aws_iam_role.lab_role.arn
   subnet_ids      = aws_subnet.public[*].id
   instance_types  = [var.node_instance_type]
 
@@ -169,12 +123,6 @@ resource "aws_eks_node_group" "main" {
     max_size     = 3
     min_size     = 1
   }
-
-  depends_on = [
-    aws_iam_role_policy_attachment.eks_worker_node_policy,
-    aws_iam_role_policy_attachment.eks_cni_policy,
-    aws_iam_role_policy_attachment.eks_ecr_read,
-  ]
 
   tags = { Name = "${var.cluster_name}-nodes" }
 }
@@ -203,53 +151,4 @@ resource "aws_ecr_repository" "backend" {
   }
 
   tags = { Name = "backend" }
-}
-
-# ----------------------------------------------------------
-# IAM — GitHub Actions User
-# ----------------------------------------------------------
-
-resource "aws_iam_user" "github_actions" {
-  name = "github-action-user"
-  tags = { Purpose = "GitHub Actions CI/CD" }
-}
-
-resource "aws_iam_policy" "github_actions" {
-  name        = "github-action-policy"
-  description = "Permissions for GitHub Actions to deploy to EKS and push to ECR"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "ECRAccess"
-        Effect = "Allow"
-        Action = [
-          "ecr:GetAuthorizationToken",
-          "ecr:BatchCheckLayerAvailability",
-          "ecr:GetDownloadUrlForLayer",
-          "ecr:BatchGetImage",
-          "ecr:PutImage",
-          "ecr:InitiateLayerUpload",
-          "ecr:UploadLayerPart",
-          "ecr:CompleteLayerUpload",
-        ]
-        Resource = "*"
-      },
-      {
-        Sid    = "EKSAccess"
-        Effect = "Allow"
-        Action = [
-          "eks:DescribeCluster",
-          "eks:ListClusters",
-        ]
-        Resource = "*"
-      }
-    ]
-  })
-}
-
-resource "aws_iam_user_policy_attachment" "github_actions" {
-  user       = aws_iam_user.github_actions.name
-  policy_arn = aws_iam_policy.github_actions.arn
 }
