@@ -9,5 +9,3 @@ root.render(
     <App />
   </React.StrictMode>
 );
-# trigger
-// ci trigger 2026-09-27 10:11

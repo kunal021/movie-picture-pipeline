@@ -19,6 +19,6 @@ RUN mkdir -p /var/www/app && mkdir /app
 COPY Pipfile* /app
 RUN cd /app && pipenv install --system --deploy
 
-COPY . /app
+WORKDIR /app
 
-CMD uwsgi --http :5000 --master --enable-threads -s /var/www/app/app.sock --manage-script-name --mount /=app:app
+CMD ["python", "-m", "flask", "run", "--host=0.0.0.0", "--port=5000"]
