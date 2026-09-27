@@ -1,133 +1,55 @@
-# Movie Picture Pipeline — CI/CD with GitHub Actions
+# Movie Picture Pipeline — CI/CD with GitHub Actions and AWS EKS
 
-A fully automated CI/CD pipeline for the Movie Picture web application using **GitHub Actions**, **Amazon ECR**, and **Amazon EKS**.
+This repository contains the full automated CI/CD pipeline and Kubernetes manifests for the Movie Picture web application (React frontend and Flask backend), deployed on Amazon EKS.
 
-## Repository Structure
+## 🔗 Live Application URLs
 
-```
-.
-├── .github/
-│   └── workflows/
-│       ├── frontend-ci.yaml     # Frontend CI (PR → lint, test, build)
-│       ├── frontend-cd.yaml     # Frontend CD (push main → ECR + EKS)
-│       ├── backend-ci.yaml      # Backend CI  (PR → lint, test, build)
-│       └── backend-cd.yaml      # Backend CD  (push main → ECR + EKS)
-├── starter/
-│   ├── frontend/                # React/TypeScript frontend app
-│   │   ├── k8s/                 # Kubernetes manifests (kustomize)
-│   │   └── Dockerfile
-│   └── backend/                 # Python/Flask backend API
-│       ├── k8s/                 # Kubernetes manifests (kustomize)
-│       └── Dockerfile
-└── setup/
-    ├── init.sh                  # Grants GitHub Actions user EKS access
-    └── terraform/               # AWS infrastructure as code
-        ├── main.tf
-        ├── variables.tf
-        └── outputs.tf
-```
+- **Frontend Application**: [http://af1c634dbd2bb449ea8a66cbfbf41ccf-70307824.us-east-1.elb.amazonaws.com](http://af1c634dbd2bb449ea8a66cbfbf41ccf-70307824.us-east-1.elb.amazonaws.com)
+- **Backend API (`/movies/`)**: [http://aef59347ee3f44a6ebe66cef939484cd-508910549.us-east-1.elb.amazonaws.com/movies/](http://aef59347ee3f44a6ebe66cef939484cd-508910549.us-east-1.elb.amazonaws.com/movies/)
 
-## Applications
+---
 
-| App | Language | Framework | Port |
-|-----|----------|-----------|------|
-| Frontend | TypeScript | React | 3000 |
-| Backend  | Python     | Flask | 5000 |
+## 🚀 GitHub Actions Workflows
 
-## Workflows Overview
+All 4 required workflows are implemented and have successful runs in the [Actions](../../actions) tab:
 
-| Workflow | File | Trigger | Jobs |
-|----------|------|---------|------|
-| Frontend Continuous Integration | `frontend-ci.yaml` | PR to `main` (frontend changes) | lint ∥ test → build |
-| Frontend Continuous Deployment | `frontend-cd.yaml` | Push to `main` (frontend changes) | lint ∥ test → build+ECR push → deploy |
-| Backend Continuous Integration | `backend-ci.yaml` | PR to `main` (backend changes) | lint ∥ test → build |
-| Backend Continuous Deployment | `backend-cd.yaml` | Push to `main` (backend changes) | lint ∥ test → build+ECR push → deploy |
+| Workflow | File | Triggers | Jobs |
+|---|---|---|---|
+| **Frontend Continuous Integration** | `.github/workflows/frontend-ci.yaml` | PR to `main`, `workflow_dispatch` | `lint`, `test`, `build` |
+| **Backend Continuous Integration** | `.github/workflows/backend-ci.yaml` | PR to `main`, `workflow_dispatch` | `lint`, `test`, `build` |
+| **Frontend Continuous Deployment** | `.github/workflows/frontend-cd.yaml` | Push to `main`, `workflow_dispatch` | `lint`, `test`, `build` (ECR), `deploy` (EKS) |
+| **Backend Continuous Deployment** | `.github/workflows/backend-cd.yaml` | Push to `main`, `workflow_dispatch` | `lint`, `test`, `build` (ECR), `deploy` (EKS) |
 
-All workflows can also be triggered **manually** via `workflow_dispatch`.
+---
 
-## Required GitHub Secrets
+## ☸️ Kubernetes Deployment Status (`kubectl get all`)
 
-Go to **Settings → Secrets and variables → Actions** and add:
+```text
+NAME                           READY   STATUS    RESTARTS   AGE
+pod/backend-bdc4bfb4c-kdwhb    1/1     Running   0          5m
+pod/frontend-7c975cf96-64jh5   1/1     Running   0          2m
 
-| Secret | Description | Example |
-|--------|-------------|---------|
-| `AWS_ACCESS_KEY_ID` | github-action-user access key | `AKIAIOSFODNN7EXAMPLE` |
-| `AWS_SECRET_ACCESS_KEY` | github-action-user secret key | `wJalrXUtnFEMI/...` |
-| `AWS_REGION` | AWS region | `us-east-1` |
-| `ECR_REGISTRY` | ECR registry base URL | `123456789.dkr.ecr.us-east-1.amazonaws.com` |
-| `FRONTEND_ECR_REPO` | Frontend ECR repo name | `frontend` |
-| `BACKEND_ECR_REPO` | Backend ECR repo name | `backend` |
-| `EKS_CLUSTER_NAME` | EKS cluster name | `cluster` |
-| `REACT_APP_MOVIE_API_URL` | Backend LoadBalancer URL | `http://<lb-hostname>` |
+NAME                 TYPE           CLUSTER-IP      EXTERNAL-IP                                                              PORT(S)        AGE
+service/backend      LoadBalancer   172.20.28.241   aef59347ee3f44a6ebe66cef939484cd-508910549.us-east-1.elb.amazonaws.com   80:30959/TCP   5m
+service/frontend     LoadBalancer   172.20.213.21   af1c634dbd2bb449ea8a66cbfbf41ccf-70307824.us-east-1.elb.amazonaws.com    80:32496/TCP   2m
+service/kubernetes   ClusterIP      172.20.0.1      <none>                                                                   443/TCP        78m
 
-> ⚠️ **NEVER** put AWS credentials directly in workflow files. Always use secrets.
+NAME                       READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/backend    1/1     1            1           5m
+deployment.apps/frontend   1/1     1            1           2m
 
-## Quick Start
-
-### 1. Fork and clone
-
-```bash
-git clone https://github.com/<your-username>/cd12354-Movie-Picture-Pipeline.git
-cd cd12354-Movie-Picture-Pipeline
+NAME                                 DESIRED   CURRENT   READY   AGE
+replicaset.apps/backend-bdc4bfb4c    1         1         1       5m
+replicaset.apps/frontend-7c975cf96   1         1         1       2m
 ```
 
-### 2. Provision AWS infrastructure
+---
 
-See [TERRAFORM_SETUP.md](./TERRAFORM_SETUP.md) for full instructions.
+## 🛠️ Infrastructure Setup (Terraform)
 
-```bash
-cd setup/terraform
-terraform init
-terraform apply
-```
-
-### 3. Grant GitHub Actions user cluster access
-
-```bash
-cd setup
-./init.sh cluster us-east-1
-```
-
-### 4. Add GitHub Secrets
-
-Copy the Terraform outputs and add them as GitHub Secrets (see table above).
-
-### 5. Deploy
-
-- Open a PR against `main` → CI workflows run automatically
-- Merge to `main` → CD workflows deploy to your cluster
-
-## Local Development
-
-### Frontend
-
-```bash
-cd starter/frontend
-npm ci
-REACT_APP_MOVIE_API_URL=http://localhost:5000 npm start
-```
-
-### Backend
-
-```bash
-cd starter/backend
-pipenv install
-pipenv run serve
-```
-
-### Run tests locally
-
-```bash
-# Frontend
-cd starter/frontend && CI=true npm test
-
-# Backend
-cd starter/backend && pipenv run test
-```
-
-## Tear Down AWS Resources
-
-```bash
-cd setup/terraform
-terraform destroy
-```
+Infrastructure was provisioned using Terraform in `setup/terraform/`:
+- **VPC** with 2 public subnets across availability zones
+- **Amazon EKS Cluster** (Kubernetes v1.30)
+- **EKS Managed Node Group** (Free Tier eligible `t3.small` nodes)
+- **Amazon ECR Repositories** for `frontend` and `backend` images
+- Dedicated **IAM User** (`github-action-user`) with least-privilege policies for GitHub Actions CI/CD
