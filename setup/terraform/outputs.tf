@@ -35,7 +35,15 @@ output "aws_region" {
   value = var.aws_region
 }
 
-output "iam_role_arn_used" {
-  description = "IAM role ARN used for EKS"
-  value       = var.iam_role_arn
+output "github_action_user_arn" {
+  value = aws_iam_user.github_actions.arn
+}
+
+output "github_action_access_key_id" {
+  value = aws_iam_access_key.github_actions.id
+}
+
+output "github_action_secret_access_key" {
+  value     = aws_iam_access_key.github_actions.secret
+  sensitive = true
 }
