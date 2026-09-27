@@ -5,13 +5,9 @@ ENV FLASK_APP=__init__.py
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir pipenv
-
-COPY Pipfile* ./
-
-RUN pipenv install --system --deploy --ignore-pipfile
-
 COPY . .
+
+RUN pip install --no-cache-dir flask flask-cors
 
 EXPOSE 5000
 
